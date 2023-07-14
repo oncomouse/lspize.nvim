@@ -3,11 +3,14 @@ local Lsp = {}
 
 local count = 1
 
-function Lsp:new(handlers)
+function Lsp:new(handlers, opts)
+	opts = opts or {
+		filetypes = nil,
+	}
 	local capabilities = {}
-	for method,_ in pairs(handlers) do
+	for method, _ in pairs(handlers) do
 		if methods.request_name_to_capability[method] then
-			for _,capability in pairs(methods.request_name_to_capability[method]) do
+			for _, capability in pairs(methods.request_name_to_capability[method]) do
 				capabilities[capability] = true
 			end
 		end
@@ -23,9 +26,15 @@ function Lsp:new(handlers)
 		end,
 	})
 	self.__index = self
-	vim.api.nvim_create_autocmd({"BufEnter", "BufNewFile"}, {
+	local autocmd_pattern
+	if opts.filetype then
+		autocmd_pattern = table.concat(type(opts.filetype) == "table" and opts.filetype or { opts.filetype }, ",")
+	else
+		autocmd_pattern = "*"
+	end
+	vim.api.nvim_create_autocmd({ "FileType" }, {
 		group = vim.api.nvim_create_augroup("lspize.nvim-" .. count, {}),
-		pattern = "*",
+		pattern = autocmd_pattern,
 		callback = function()
 			local server = function(dispatchers)
 				local closing = false
@@ -47,7 +56,7 @@ function Lsp:new(handlers)
 			end
 			vim.lsp.start({ name = "lspize.nvim-" .. count, cmd = server })
 			count = count + 1
-		end
+		end,
 	})
 	return handlers
 end
