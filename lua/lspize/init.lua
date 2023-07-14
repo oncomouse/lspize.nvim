@@ -32,29 +32,33 @@ function Lsp:new(handlers, opts)
 	else
 		autocmd_pattern = "*"
 	end
+	local server = function(dispatchers)
+		local closing = false
+		return {
+			request = function(method, params, callback)
+				handlers[method](params, callback)
+			end,
+			notify = function(...) end,
+			is_closing = function()
+				return closing
+			end,
+			terminate = function()
+				if not closing then
+					closing = true
+					dispatchers.on_exit(0, 0)
+				end
+			end,
+		}
+	end
 	vim.api.nvim_create_autocmd({ "FileType" }, {
 		group = vim.api.nvim_create_augroup("lspize.nvim-" .. count, {}),
 		pattern = autocmd_pattern,
 		callback = function()
-			local server = function(dispatchers)
-				local closing = false
-				return {
-					request = function(method, params, callback)
-						handlers[method](params, callback)
-					end,
-					notify = function(...) end,
-					is_closing = function()
-						return closing
-					end,
-					terminate = function()
-						if not closing then
-							closing = true
-							dispatchers.on_exit(0, 0)
-						end
-					end,
-				}
-			end
-			vim.lsp.start({ name = "lspize.nvim-" .. count, cmd = server })
+			vim.lsp.start({
+				name = opts.name or ("lspize.nvim-" .. count),
+				cmd = server,
+				on_attach = opts.on_attach
+			})
 			count = count + 1
 		end,
 	})
