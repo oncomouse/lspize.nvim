@@ -25,19 +25,18 @@ function Lsp:new(handlers, opts)
 			end
 		end,
 	})
-	self.__index = self
 	local autocmd_pattern
 	if opts.filetype then
 		autocmd_pattern = table.concat(type(opts.filetype) == "table" and opts.filetype or { opts.filetype }, ",")
 	else
-		autocmd_pattern = "*"
+		autocmd_pattern = ""
 	end
 	local server = function(dispatchers)
 		local closing = false
 		return {
-			request = function(method, params, callback)
+			request = vim.schedule_wrap(function(method, params, callback)
 				handlers[method](params, callback)
-			end,
+			end),
 			notify = function(...) end,
 			is_closing = function()
 				return closing
@@ -54,9 +53,11 @@ function Lsp:new(handlers, opts)
 		group = vim.api.nvim_create_augroup("lspize.nvim-" .. count, {}),
 		pattern = autocmd_pattern,
 		callback = function()
+			local name = opts.name or ("lspize.nvim-" .. count)
 			vim.lsp.start({
-				name = opts.name or ("lspize.nvim-" .. count),
+				name = name,
 				cmd = server,
+				flags = { debounce_text_changes = opts.debounce or 250 },
 				on_attach = opts.on_attach
 			})
 			count = count + 1
