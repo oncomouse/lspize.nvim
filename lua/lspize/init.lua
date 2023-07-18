@@ -2,8 +2,10 @@ local methods = require("lspize.methods")
 local Lsp = {}
 
 local count = 1
+local autocmds = {}
+local augroup = vim.api.nvim_create_augroup("lspize.nvim", {})
 
-function Lsp:new(handlers, opts)
+function Lsp.create(handlers, opts)
 	opts = opts or {
 		filetypes = nil,
 	}
@@ -29,7 +31,7 @@ function Lsp:new(handlers, opts)
 	if opts.filetype then
 		autocmd_pattern = table.concat(type(opts.filetype) == "table" and opts.filetype or { opts.filetype }, ",")
 	else
-		autocmd_pattern = ""
+		autocmd_pattern = nil
 	end
 	local server = function(dispatchers)
 		local closing = false
@@ -49,19 +51,28 @@ function Lsp:new(handlers, opts)
 			end,
 		}
 	end
-	vim.api.nvim_create_autocmd({ "FileType" }, {
-		group = vim.api.nvim_create_augroup("lspize.nvim-" .. count, {}),
-		pattern = autocmd_pattern,
-		callback = function()
-			local name = opts.name or ("lspize.nvim-" .. count)
-			vim.lsp.start({
-				name = name,
-				cmd = server,
-				flags = { debounce_text_changes = opts.debounce or 250 },
-				on_attach = opts.on_attach
-			})
-			count = count + 1
-		end,
+	if autocmds[autocmd_pattern or "default"] == nil then
+		autocmds[autocmd_pattern or "default"] = {}
+		vim.api.nvim_create_autocmd({ "FileType" }, {
+			group = augroup,
+			pattern = autocmd_pattern or "",
+			callback = function()
+				for _, server_definition in pairs(autocmds[autocmd_pattern or "default"]) do
+					local server, opts = unpack(server_definition)
+					local name = opts.name or ("lspize.nvim-" .. count)
+					vim.lsp.start({
+						name = name,
+						cmd = server,
+						flags = { debounce_text_changes = opts.debounce or 250 },
+						on_attach = opts.on_attach
+					})
+					count = count + 1
+				end
+			end,
+		})
+	end
+	table.insert(autocmds[autocmd_pattern or "default"], {
+		server, opts
 	})
 	return handlers
 end
